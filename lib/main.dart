@@ -21,7 +21,7 @@ void main() async {
     );
   }
 
-  // Initialize additional app for web if needed
+  // Initialize additional app for web if needed s
   if (kIsWeb) {
     print("web");
     await Firebase.initializeApp(
