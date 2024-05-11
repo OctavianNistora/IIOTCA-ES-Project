@@ -18,7 +18,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions web = FirebaseOptions(
     // Update with your web Firebase configuration
-    apiKey: 'ADDHERE YOUR API KEY',
+    apiKey: 'AIzaSyDo4QhmD-doFAYqQtLjPzSPamQicx6rmB0',
     appId: '1:884253830844:web:3a881604b0b521d1d86ab9',
     messagingSenderId: '884253830844',
     projectId: 'ot-project-48691',
@@ -29,7 +29,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     // Update with your Android Firebase configuration
-    apiKey: 'ADD HERE YOUR API KEY',
+    apiKey: 'AIzaSyDo4QhmD-doFAYqQtLjPzSPamQicx6rmB0',
     appId: '1:884253830844:android:ededfa0fb300bd70d86ab9',
     messagingSenderId: '884253830844',
     projectId: 'ot-project-48691',
