@@ -1,1 +1,2 @@
-# IIOTCA-ES-Project
+# Raspberry Pi Application
+This is the Raspberry Pi application that is used to monitor the car's surroundings and send the information to the database, while also controlling the car's movement and audio output using the pre-trained object detection model and translation + text-to-speech AI services.

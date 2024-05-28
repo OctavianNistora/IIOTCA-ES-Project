@@ -1,8 +1,6 @@
-from math import nan
 from multiprocessing import Process, Pipe
 from time import sleep
-
-from sympy import sec
+import sys
 
 def proximity_sensor(input, output): # Function to measure the distance between the sensor and an object
     import gpiod # Import the GPIO library used to interact with the GPIO pins
@@ -137,7 +135,7 @@ def object_detection_camera(output): # Function to detect objects in the camera 
             # Sign names are kept as they are in order to preserve as much information as possible
         output.send(signs_list) # Send the list of detected objects to the main process
 
-def accelerometer_sensor_process(output): # Function to measure the acceleration in the x, y, and z directions
+def accelerometer_sensor(output): # Function to measure the acceleration in the x, y, and z directions
     import smbus # Import the smbus library used to interact with the I2C bus
     import time # Import the time library used for delays
     
@@ -193,12 +191,100 @@ def accelerometer_sensor_process(output): # Function to measure the acceleration
         output.close() # Close the output pipe
         print("Accelerometer Process Ended")
 
+
+def database_service(input, output):
+    import datetime
+    import firebase_admin
+    from firebase_admin import credentials
+    from firebase_admin import db
+
+    try:
+        hw = ''
+        revision = ''
+        serial = ''
+        cpuinfo = open('/proc/cpuinfo', 'r').read()
+        cpuinfo = cpuinfo.split('\n')
+        for line in cpuinfo:
+            if 'Hardware' in line:
+                hw = line.split(':')[-1].strip()
+            if 'Revision' in line:
+                revision = line.split(':')[-1].strip()
+            if 'Serial' in line:
+                serial = line.split(':')[-1].strip()
+        hwid = hw + revision + serial
+
+        cred = credentials.Certificate('iot-project-48691-firebase-adminsdk-gsybl-63704b8fd6.json')
+        admin_options = {
+            'databaseURL': 'https://iot-project-48691-default-rtdb.europe-west1.firebasedatabase.app/'
+        }
+
+        firebase_admin.initialize_app(cred, admin_options)
+        realtimedata = db.reference(f'{hwid}/realtime-data')
+        historydata = db.reference(f'{hwid}/history-data')
+
+        while True:
+            output.send(True)
+            package = input.recv()
+
+            realtimedata.set(package)
+            historydata.update({
+                datetime.datetime.now(datetime.UTC).strftime('%Y-%m-%d-%H-%M-%S-%f'): package
+            })
+    except:
+        firebase_admin.delete_app(firebase_admin.get_app())
+        output.close()
+        input.close()
+        print("Database Process Ended")
+
+def translate_service(target_language_code: str, input, output):
+    import pyaudio
+    from google.cloud import translate
+    import google.cloud.texttospeech as tts
+
+    try:
+        available_voices = {'en': 'en-GB-Standard-B', 'de': 'de-DE-Standard-B', 'fr': 'fr-FR-Standard-B', 'es': 'es-ES-Standard-B'}
+
+        client_translate = translate.TranslationServiceClient()
+        client_speech = tts.TextToSpeechClient()
+        p = pyaudio.PyAudio()
+        stream = p.open(format=p.get_format_from_width(2), channels=1, rate=24000, output=True)
+
+        voice_params = tts.VoiceSelectionParams(
+            language_code="-".join(available_voices[target_language_code].split("-")[:2]), name=available_voices[target_language_code]
+        )
+        audio_config = tts.AudioConfig(audio_encoding=tts.AudioEncoding.LINEAR16)
+
+        while True:        
+            output.send(True)
+            text = input.recv()
+            if (target_language_code in ['de', 'fr', 'es']):
+                response = client_translate.translate_text(
+                    parent="projects/iot-project-48691",
+                    contents=[text],
+                    target_language_code=target_language_code,
+                )
+                text = response.translations[0].translated_text
+            text_input = tts.SynthesisInput(text=text)
+    
+            response = client_speech.synthesize_speech(
+                input=text_input,
+                voice=voice_params,
+                audio_config=audio_config,
+            )
+    
+            stream.write(response.audio_content)
+    except:
+        input.close()
+        output.close()
+        stream.close()
+        p.terminate()
+        print("Translate Process Ended")
+
 if __name__ == "__main__":
-    from math import nan
     parent_proximity_input, child_proximity_output = Pipe(False) # Create a pipe from the proximity sensor process to the main process
     child_proximity_input, parent_proximity_output = Pipe(False) # Create a pipe from the main process to the proximity sensor process
-    proximity_sensor_process = Process(target=proximity_sensor, args=(child_proximity_input, child_proximity_output)) # Create a process for the proximity sensor
-    proximity_sensor_process.start() # Start the proximity sensor process
+    proximity_process = Process(target=proximity_sensor, args=(child_proximity_input, child_proximity_output)) # Create a process for the proximity sensor
+    proximity_process.start() # Start the proximity sensor process
 
     child_motor_input, parent_motor_output = Pipe(False) # Create a pipe from the main process to the DC motor process
     motor_process = Process(target=dc_motor, args=(child_motor_input,)) # Create a process for the DC motor
@@ -209,8 +295,21 @@ if __name__ == "__main__":
     camera_process.start() # Start the object detection camera process
 
     parent_accelerometer_input, child_accelerometer_output = Pipe(False) # Create a pipe from the accelerometer process to the main process
-    accelerometer_process = Process(target=accelerometer_sensor_process, args=(child_accelerometer_output,)) # Create a process for the accelerometer
+    accelerometer_process = Process(target=accelerometer_sensor, args=(child_accelerometer_output,)) # Create a process for the accelerometer
     accelerometer_process.start() # Start the accelerometer process
+
+    parent_database_input, child_database_output = Pipe(False)
+    child_database_input, parent_database_output = Pipe(False)
+    database_process = Process(target=database_service, args=(child_database_input, child_database_output))
+    database_process.start()
+
+    language = 'en'
+    if (len(sys.argv) > 1 and sys.argv[1] in ['de', 'fr', 'es']):
+        language = sys.argv[1]
+    parent_translate_input, child_translate_output = Pipe(False)
+    child_translate_input, parent_translate_output = Pipe(False)
+    translate_process = Process(target=translate_service, args=(language, child_translate_input, child_translate_output))
+    translate_process.start()
 
     try:
         crashes = 0 # Variable to store the number of crashes
@@ -218,7 +317,7 @@ if __name__ == "__main__":
         reduce_signs = ["regulatory - yield", "warning - roadworks", "warning - children", "warning - pedestrians crossing", "warning - railroad crossing", "warning - railroad crossing with barriers", "warning - railroad crossing without barriers"] # List of signs that require the vehicle to reduce its speed
 
         while True: # Infinite loop to continuously control the speed of the DC motor based on the proximity sensor and the detected objects
-            distance = nan # Variable to store the distance between the sensor and an object, initialized to NaN in case the proximity sensor process has not sent any data
+            distance = -1 # Variable to store the distance between the sensor and an object, initialized to -1 as the default distance in case the proximity sensor process has not sent any data
             signs = [] # List to store the detected objects, initialized to an empty list in case the object detection camera process has not sent any data
             acceleration = [] # List to store the acceleration in the x, y, and z directions, initialized to an empty list in case the accelerometer process has not sent any data
             total_acceleration = 0 # Variable to store the total acceleration, initialized to 0 as the default acceleration in case the accelerometer process has not sent any data
@@ -257,23 +356,43 @@ if __name__ == "__main__":
 
                 if any(' - '.join(sign.split('--')[:-1]) in stop_signs for sign in signs): # If a stop sign is detected, stop the vehicle
                     speed = 0.0
+                    if parent_translate_input.poll():
+                        parent_translate_input.recv()
+                        parent_translate_output.send("You need to stop the vehicle.")
                 elif any(' - '.join(sign.split('--')[:-1]) in reduce_signs for sign in signs): # If a yield or a warning sign is detected, slow down the vehicle
                     if speed > 0.0: # Slow down the vehicle if it is moving forwards
                         speed = 0.5
+                        if parent_translate_input.poll():
+                            parent_translate_input.recv()
+                            parent_translate_output.send("You need to reduce your speed.")
             else:
                 speed = 0.0 # Stop the vehicle if a crash has occurred
 
             parent_motor_output.send(speed) # Send the speed of the DC motor to the DC motor process
 
+            if parent_database_input.poll():
+                parent_database_input.recv()
+                parent_database_output.send({
+                    "acceleration-x": acceleration[0],
+                    "acceleration-y": acceleration[1],
+                    "acceleration-z": acceleration[2],
+                    "crash-count": crashes,
+                    "frontal-distance": distance,
+                    "signs-detected": signs,
+                })
+
             print() # Print an empty line to separate the iterations for debugging purposes
             sleep(0.4) # Wait for 0.4 seconds before starting the next iteration to prevent the process from consuming too much CPU power and becoming unstable
     except:
-        parent_motor_output.close()
         parent_proximity_input.close() # Close the input pipe from the proximity sensor process
         parent_proximity_output.close() # Close the output pipe to the proximity sensor process
-        proximity_sensor_process.join() # Wait for the proximity sensor process to end
+        parent_motor_output.close() # Close the output pipe to the DC motor process
+        parent_accelerometer_input.close() # Close the input pipe from the accelerometer process
+        parent_database_input.close() # Close the input pipe from the database process
+        parent_database_output.close() # Close the output pipe to the database process
+        parent_translate_input.close()
+        parent_translate_output.close()
         camera_process.kill() # Kill the object detection camera process
-        parent_camera_input.close() # Close the input pipe from the object detection camera process
         print("Camera Process Killed") # Print a message to indicate that the object detection camera process has been killed
         print("Main Process Ended") # Print a message to indicate that the main process has ended
 
