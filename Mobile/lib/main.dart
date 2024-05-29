@@ -95,7 +95,7 @@ class _MyHomePageState extends State<MyHomePage> {
     await flutterTts.setLanguage('en-US');
     await flutterTts.setSpeechRate(1.0);
     await flutterTts.setPitch(1.0);
-    await flutterTts.speak("Testing commit");
+    await flutterTts.speak("Testing commit 2.0");
   }
 
   @override
