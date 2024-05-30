@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "335037135928",
+    "project_id": "cityscene-dc3b3",
+    "storage_bucket": "cityscene-dc3b3.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:335037135928:android:21fe83314ba5310e927acd",
+        "android_client_info": {
+          "package_name": "com.example.flutter_application_2"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "-add you apikey here-"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
