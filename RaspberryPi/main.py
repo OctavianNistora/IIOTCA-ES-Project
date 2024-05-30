@@ -2,6 +2,8 @@ from multiprocessing import Process, Pipe
 from time import sleep
 import sys
 
+from numpy import real
+
 def proximity_sensor(input, output): # Function to measure the distance between the sensor and an object
     import gpiod # Import the GPIO library used to interact with the GPIO pins
     import time # Import the time library used for delays
@@ -193,91 +195,93 @@ def accelerometer_sensor(output): # Function to measure the acceleration in the 
 
 
 def database_service(input, output):
-    import datetime
-    import firebase_admin
-    from firebase_admin import credentials
-    from firebase_admin import db
+    import datetime # Import the datetime library used to get the current date and time
+    import firebase_admin # Import the Firebase Admin SDK used to interact with the Firebase Realtime Database
+    from firebase_admin import credentials # Import the credentials module from the Firebase Admin SDK
+    from firebase_admin import db # Import the database module from the Firebase Admin SDK
 
     try:
-        hw = ''
-        revision = ''
-        serial = ''
-        cpuinfo = open('/proc/cpuinfo', 'r').read()
-        cpuinfo = cpuinfo.split('\n')
-        for line in cpuinfo:
-            if 'Hardware' in line:
-                hw = line.split(':')[-1].strip()
-            if 'Revision' in line:
-                revision = line.split(':')[-1].strip()
-            if 'Serial' in line:
-                serial = line.split(':')[-1].strip()
-        hwid = hw + revision + serial
+        hw = '' # Hardware
+        revision = '' # Revision
+        serial = '' # Serial
+        cpuinfo = open('/proc/cpuinfo', 'r').read() # Read the CPU information from the /proc/cpuinfo file
+        cpuinfo = cpuinfo.split('\n') # Split the CPU information into lines
+        for line in cpuinfo: # Iterate over the lines of the CPU information
+            if 'Hardware' in line: # If the line contains the hardware information
+                hw = line.split(':')[-1].strip() # Get the hardware information
+            if 'Revision' in line: # If the line contains the revision information
+                revision = line.split(':')[-1].strip() # Get the revision information
+            if 'Serial' in line: # If the line contains the serial information
+                serial = line.split(':')[-1].strip() # Get the serial information
+        hwid = hw + revision + serial # Generate a unique hardware ID based on the hardware, revision, and serial information
 
-        cred = credentials.Certificate('iot-project-48691-firebase-adminsdk-gsybl-63704b8fd6.json')
+        cred = credentials.Certificate('iot-project-48691-firebase-adminsdk-gsybl-63704b8fd6.json') # Load the Firebase Admin SDK credentials
         admin_options = {
             'databaseURL': 'https://iot-project-48691-default-rtdb.europe-west1.firebasedatabase.app/'
-        }
+        } # Set the Admin SDK options
 
-        firebase_admin.initialize_app(cred, admin_options)
-        realtimedata = db.reference(f'{hwid}/realtime-data')
-        historydata = db.reference(f'{hwid}/history-data')
+        firebase_admin.initialize_app(cred, admin_options) # Initialize the Firebase Admin SDK
+        realtimedata = db.reference(f'{hwid}/realtime-data') # Get the reference to the real-time data
+        historydata = db.reference(f'{hwid}/history-data') # Get the reference to the history data
 
-        while True:
-            output.send(True)
-            package = input.recv()
+        while True: # Infinite loop to continuously send and retrieve the data from the Firebase Realtime Database
+            output.send(True) # Send a message to the main process to indicate that the database process is ready to receive the data
+            input.recv() # Wait for the main process to acknowledge the readiness of the database process
+            output.send(realtimedata.child('remote-break').get()) # Send the remote break status to the main process
+            package = input.recv() # Receive the data from the main process
 
-            realtimedata.set(package)
+            realtimedata.update(package) # Update the real-time data with the new package
             historydata.update({
                 datetime.datetime.now(datetime.UTC).strftime('%Y-%m-%d-%H-%M-%S-%f'): package
-            })
+            }) # Add the new package to the history data
     except:
-        firebase_admin.delete_app(firebase_admin.get_app())
-        output.close()
-        input.close()
+        firebase_admin.delete_app(firebase_admin.get_app()) # Delete the Firebase Admin SDK app
+        output.close() # Close the output pipe
+        input.close() # Close the input pipe
         print("Database Process Ended")
 
-def translate_service(target_language_code: str, input, output):
-    import pyaudio
-    from google.cloud import translate
-    import google.cloud.texttospeech as tts
+def translated_speech_service(target_language_code: str, input, output):
+    import pyaudio # Import the PyAudio library used to interact with the audio devices
+    from google.cloud import translate # Import the Google Cloud Translation library used to translate text
+    import google.cloud.texttospeech as tts # Import the Google Cloud Text-to-Speech library used to convert text to speech
 
     try:
-        available_voices = {'en': 'en-GB-Standard-B', 'de': 'de-DE-Standard-B', 'fr': 'fr-FR-Standard-B', 'es': 'es-ES-Standard-B'}
+        available_voices = {'en': 'en-GB-Standard-B', 'de': 'de-DE-Standard-B', 'fr': 'fr-FR-Standard-B', 'es': 'es-ES-Standard-B'} # Available voices for the text-to-speech engine
 
-        client_translate = translate.TranslationServiceClient()
-        client_speech = tts.TextToSpeechClient()
-        p = pyaudio.PyAudio()
-        stream = p.open(format=p.get_format_from_width(2), channels=1, rate=24000, output=True)
+        client_translate = translate.TranslationServiceClient() # Initialize the Google Cloud Translation client
+        client_speech = tts.TextToSpeechClient() # Initialize the Google Cloud Text-to-Speech client
+        p = pyaudio.PyAudio() # Initialize the PyAudio library
+        stream = p.open(format=p.get_format_from_width(2), channels=1, rate=24000, output=True) # Open an audio stream
 
         voice_params = tts.VoiceSelectionParams(
             language_code="-".join(available_voices[target_language_code].split("-")[:2]), name=available_voices[target_language_code]
-        )
-        audio_config = tts.AudioConfig(audio_encoding=tts.AudioEncoding.LINEAR16)
+        ) # Set the voice parameters for the text-to-speech engine
+        audio_config = tts.AudioConfig(audio_encoding=tts.AudioEncoding.LINEAR16) # Set the audio configuration for the text-to-speech engine
 
-        while True:        
-            output.send(True)
-            text = input.recv()
-            if (target_language_code in ['de', 'fr', 'es']):
+        while True: # Infinite loop to continuously convert text to speech    
+            output.send(True) # Send a message to the main process to indicate that the translation process is ready to receive the text
+            text = input.recv() # Receive the text to be spoken from the main process
+            if (target_language_code in ['de', 'fr', 'es']): # If the target language is not English, translate the text
                 response = client_translate.translate_text(
                     parent="projects/iot-project-48691",
                     contents=[text],
                     target_language_code=target_language_code,
-                )
-                text = response.translations[0].translated_text
-            text_input = tts.SynthesisInput(text=text)
+                ) # Translate the text to the target language
+                text = response.translations[0].translated_text # Get the translated text
+            text_input = tts.SynthesisInput(text=text) # Set the text input for the text-to-speech engine
     
             response = client_speech.synthesize_speech(
                 input=text_input,
                 voice=voice_params,
                 audio_config=audio_config,
-            )
+            ) # Synthesize the speech from the text
     
-            stream.write(response.audio_content)
+            stream.write(response.audio_content) # Play the synthesized speech
     except:
-        input.close()
-        output.close()
-        stream.close()
-        p.terminate()
+        input.close() # Close the input pipe
+        output.close() # Close the output pipe
+        stream.close() # Close the audio stream
+        p.terminate() # Terminate the PyAudio library
         print("Translate Process Ended")
 
 if __name__ == "__main__":
@@ -308,10 +312,11 @@ if __name__ == "__main__":
         language = sys.argv[1]
     parent_translate_input, child_translate_output = Pipe(False)
     child_translate_input, parent_translate_output = Pipe(False)
-    translate_process = Process(target=translate_service, args=(language, child_translate_input, child_translate_output))
+    translate_process = Process(target=translated_speech_service, args=(language, child_translate_input, child_translate_output))
     translate_process.start()
 
     try:
+        remote_break = False
         crashes = 0 # Variable to store the number of crashes
         stop_signs = ["regulatory - stop"] # List of signs that require the vehicle to stop
         reduce_signs = ["regulatory - yield", "warning - roadworks", "warning - children", "warning - pedestrians crossing", "warning - railroad crossing", "warning - railroad crossing with barriers", "warning - railroad crossing without barriers"] # List of signs that require the vehicle to reduce its speed
@@ -342,7 +347,7 @@ if __name__ == "__main__":
 
             if total_acceleration > 1.2: # If the total acceleration is greater than 1.2 g, increment the number of crashes
                 crashes += 1
-            print(f"Crashes: {crashes}")
+            print(f"Crashes: {crashes}") # Print the number of crashes for debugging purposes
 
             if crashes == 0: # If no crash has occurred, control the speed of the DC motor based on the distance and the detected objects
                 if distance < 0.5: # If the distance is less than 0.5 meters, go backwards at half speed
@@ -355,23 +360,24 @@ if __name__ == "__main__":
                 # No need for else statement as speed is already set to 0.0
 
                 if any(' - '.join(sign.split('--')[:-1]) in stop_signs for sign in signs): # If a stop sign is detected, stop the vehicle
-                    speed = 0.0
-                    if parent_translate_input.poll():
-                        parent_translate_input.recv()
-                        parent_translate_output.send("You need to stop the vehicle.")
+                    speed = 0.0 # Stop the vehicle
+                    if parent_translate_input.poll(): # If the input buffer from the translation process is not empty
+                        parent_translate_input.recv() # Empty the input buffer from the translation process
+                        parent_translate_output.send("You need to stop the vehicle.") # Send a message to the translation process to be spoken by the text-to-speech engine
                 elif any(' - '.join(sign.split('--')[:-1]) in reduce_signs for sign in signs): # If a yield or a warning sign is detected, slow down the vehicle
                     if speed > 0.0: # Slow down the vehicle if it is moving forwards
-                        speed = 0.5
-                        if parent_translate_input.poll():
-                            parent_translate_input.recv()
-                            parent_translate_output.send("You need to reduce your speed.")
+                        speed = 0.5 # Slow down the vehicle to half speed
+                        if parent_translate_input.poll(): # If the input buffer from the translation process is not empty
+                            parent_translate_input.recv() # Empty the input buffer from the translation process
+                            parent_translate_output.send("You need to reduce your speed.") # Send a message to the translation process to be spoken by the text-to-speech engine
             else:
                 speed = 0.0 # Stop the vehicle if a crash has occurred
 
-            parent_motor_output.send(speed) # Send the speed of the DC motor to the DC motor process
-
-            if parent_database_input.poll():
-                parent_database_input.recv()
+            if parent_database_input.poll(): # If the input buffer from the database process is not empty
+                parent_database_input.recv() # Empty the input buffer from the database process
+                parent_database_output.send(True) # Send a message to the database process to indicate that the data is ready to be sent
+                if (parent_database_input.recv()): # If the remote break is set to True in the database process
+                    speed = 0.0 # Stop the vehicle
                 parent_database_output.send({
                     "acceleration-x": acceleration[0],
                     "acceleration-y": acceleration[1],
@@ -379,7 +385,9 @@ if __name__ == "__main__":
                     "crash-count": crashes,
                     "frontal-distance": distance,
                     "signs-detected": signs,
-                })
+                }) # Send the data to the database process
+
+            parent_motor_output.send(speed) # Send the speed of the DC motor to the DC motor process
 
             print() # Print an empty line to separate the iterations for debugging purposes
             sleep(0.4) # Wait for 0.4 seconds before starting the next iteration to prevent the process from consuming too much CPU power and becoming unstable
@@ -390,8 +398,8 @@ if __name__ == "__main__":
         parent_accelerometer_input.close() # Close the input pipe from the accelerometer process
         parent_database_input.close() # Close the input pipe from the database process
         parent_database_output.close() # Close the output pipe to the database process
-        parent_translate_input.close()
-        parent_translate_output.close()
+        parent_translate_input.close() # Close the input pipe from the translation process
+        parent_translate_output.close() # Close the output pipe to the translation process
         camera_process.kill() # Kill the object detection camera process
         print("Camera Process Killed") # Print a message to indicate that the object detection camera process has been killed
         print("Main Process Ended") # Print a message to indicate that the main process has ended
