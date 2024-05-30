@@ -2,15 +2,25 @@
 
 IoT App for the project
 
-## Getting Started
+# car_assist
 
-This project is a starting point for a Flutter application.
+IoT App for the project
 
-A few resources to get you started if this is your first Flutter project:
+## How to run
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+If you want to run this app you will need android studio and the flutter plugin, download the flutter sdk 3.19.6 otherwise it wont work.
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+for more information about intsalling flutter head over to this link and follow the steps: https://docs.flutter.dev/get-started/install
+
+## Attention
+
+This is a prototype project that explores the concept of enhancing the intelligence of older cars.
+
+
+## Screenshots
+
+![image](https://github.com/OctavianNistora/IIOTCA-ES-Project/assets/143354647/0db15044-b75a-413f-9195-1669db23fae3)
+
+![image](https://github.com/OctavianNistora/IIOTCA-ES-Project/assets/143354647/f580a30d-7f59-4e54-a9f0-debb7c7d9646)
+
+![image](https://github.com/OctavianNistora/IIOTCA-ES-Project/assets/143354647/00353437-f0b2-4eeb-a131-c7848b0f8bec)
