@@ -1,10 +1,7 @@
 # car_assist
 
-IoT App for the project
-
-# car_assist
-
-IoT App for the project
+IoT App for the project it supports only WEB and ANDROID as this where the only devices avaible to test on, but its possible 
+to add support for MacOS and IOS.
 
 ## How to run
 
