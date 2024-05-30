@@ -40,7 +40,7 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyDo4QhmD-doFAYqQtLjPzSPamQicx6rmB0',
+    apiKey: '-add you api key-',
     appId: '1:884253830844:web:3a881604b0b521d1d86ab9',
     messagingSenderId: '884253830844',
     projectId: 'iot-project-48691',
@@ -49,7 +49,7 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyDuMHjGpupGiihmOhzs6ZZ8EVXQkD4NQ4M',
+    apiKey: '-add you apikey here-',
     appId: '1:884253830844:android:ededfa0fb300bd70d86ab9',
     messagingSenderId: '884253830844',
     projectId: 'iot-project-48691',
